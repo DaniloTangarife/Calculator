@@ -41,13 +41,13 @@ func (h *Handler) Calculate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.calculator.Calculate(req.Operation, req.Operands)
+	result, err := h.calculator.Calculate(req.Operation, toFloats(req.Operands))
 	if err != nil {
 		h.writeCalculationError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, calculateResponse{Result: result})
+	writeJSON(w, http.StatusOK, calculateResponse{Result: resultValue(result)})
 }
 
 // Evaluate handles POST /api/v1/evaluate: a chained expression such as
@@ -59,13 +59,13 @@ func (h *Handler) Evaluate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.calculator.EvaluateExpression(req.Numbers, req.Operators)
+	result, err := h.calculator.EvaluateExpression(toFloats(req.Numbers), req.Operators)
 	if err != nil {
 		h.writeCalculationError(w, err)
 		return
 	}
 
-	writeJSON(w, http.StatusOK, calculateResponse{Result: result})
+	writeJSON(w, http.StatusOK, calculateResponse{Result: resultValue(result)})
 }
 
 // Health handles GET /api/v1/health, used by orchestrators and Docker

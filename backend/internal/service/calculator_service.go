@@ -43,7 +43,7 @@ func (s *CalculatorService) Calculate(operationName string, operands []float64) 
 			ErrInvalidOperandCount, op.Name(), op.OperandCount(), len(operands))
 	}
 
-	if err := validateFinite(operands); err != nil {
+	if err := rejectNaN(operands); err != nil {
 		return 0, err
 	}
 
@@ -55,15 +55,20 @@ func (s *CalculatorService) Calculate(operationName string, operands []float64) 
 // calculator.ExpressionEvaluator, which owns the rest of the validation
 // (operand/operator count, chainable operators).
 func (s *CalculatorService) EvaluateExpression(numbers []float64, operators []string) (float64, error) {
-	if err := validateFinite(numbers); err != nil {
+	if err := rejectNaN(numbers); err != nil {
 		return 0, err
 	}
 	return s.evaluator.Evaluate(numbers, operators)
 }
 
-func validateFinite(operands []float64) error {
+// rejectNaN rejects NaN operands only, not +/-Infinity: an earlier
+// result can legitimately be infinite (e.g. 4^1000 overflows float64),
+// and the user should be able to keep operating on it — ∞ - 5 is still
+// ∞, not a blocked operation. NaN has no such legitimate origin here,
+// so it's still treated as invalid input.
+func rejectNaN(operands []float64) error {
 	for _, operand := range operands {
-		if math.IsNaN(operand) || math.IsInf(operand, 0) {
+		if math.IsNaN(operand) {
 			return fmt.Errorf("%w: got %v", ErrInvalidOperand, operand)
 		}
 	}

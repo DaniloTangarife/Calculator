@@ -29,8 +29,15 @@ export interface EvaluateRequest {
   operators: ChainableOperation[];
 }
 
+// The backend sends a plain JSON number for an ordinary result, but
+// +Inf/-Inf/NaN have no JSON number representation — a calculation can
+// legitimately produce one (e.g. 4^1000 overflows float64's range), so
+// the backend sends these three as the same strings JS's own
+// Number.prototype.toString() uses for them, instead of failing to
+// encode the response. calculatorApi converts them back to a real
+// number before anything else sees the result.
 export interface CalculateResponse {
-  result: number;
+  result: number | "Infinity" | "-Infinity" | "NaN";
 }
 
 export interface ApiErrorBody {

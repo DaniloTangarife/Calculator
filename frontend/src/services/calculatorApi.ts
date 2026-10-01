@@ -47,6 +47,40 @@ function friendlyMessage(code: string, backendMessage: string): string {
   return FRIENDLY_ERROR_MESSAGES[code] ?? backendMessage;
 }
 
+// Converts the backend's result back into a real JS number. A plain
+// number passes through unchanged; the three sentinel strings (used
+// because JSON has no number literal for them) become the actual
+// Infinity/-Infinity/NaN values, which the rest of the app already
+// knows how to display (formatResult) and re-parse (numberToInputString
+// in useCalculator, since JS's own parseFloat understands "Infinity"
+// and "-Infinity" natively).
+function toNumber(result: CalculateResponse["result"]): number {
+  switch (result) {
+    case "Infinity":
+      return Number.POSITIVE_INFINITY;
+    case "-Infinity":
+      return Number.NEGATIVE_INFINITY;
+    case "NaN":
+      return Number.NaN;
+    default:
+      return result;
+  }
+}
+
+// The mirror image of toNumber, for the other half of the round trip:
+// an operand can itself be Infinity/-Infinity (an earlier result that
+// overflowed, now being operated on further — e.g. "4^1000" then
+// "- 5"). JSON.stringify(Infinity) silently serializes to the JSON
+// literal null, which the backend would otherwise decode as a bare 0,
+// so a non-finite operand is sent as the same sentinel string the
+// backend's own responses use instead of a raw JSON number.
+function toOperand(value: number): number | "Infinity" | "-Infinity" | "NaN" {
+  if (Number.isNaN(value)) return "NaN";
+  if (value === Number.POSITIVE_INFINITY) return "Infinity";
+  if (value === Number.NEGATIVE_INFINITY) return "-Infinity";
+  return value;
+}
+
 // postJSON is the single place that knows how to talk to the backend:
 // send a POST, parse its JSON body, and translate a non-2xx response
 // (or a network failure) into a CalculatorApiError. Both calculate()
@@ -88,9 +122,9 @@ export async function calculate(
 ): Promise<number> {
   const { result } = await postJSON<CalculateResponse>("/api/v1/calculate", {
     operation,
-    operands,
+    operands: operands.map(toOperand),
   });
-  return result;
+  return toNumber(result);
 }
 
 // evaluateExpression asks the backend to evaluate a chained expression
@@ -101,8 +135,8 @@ export async function evaluateExpression(
   operators: ChainableOperation[],
 ): Promise<number> {
   const { result } = await postJSON<CalculateResponse>("/api/v1/evaluate", {
-    numbers,
+    numbers: numbers.map(toOperand),
     operators,
   });
-  return result;
+  return toNumber(result);
 }

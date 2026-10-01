@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -98,6 +99,41 @@ func TestHandler_Calculate(t *testing.T) {
 			wantStatus: http.StatusInternalServerError,
 			wantBody:   `"code":"INTERNAL_ERROR"`,
 		},
+		{
+			name:       "a result that overflows float64 serializes as the string Infinity, not a failed encode",
+			body:       `{"operation":"power","operands":[4,1000]}`,
+			stub:       stubCalculator{result: math.Inf(1)},
+			wantStatus: http.StatusOK,
+			wantBody:   `{"result":"Infinity"}`,
+		},
+		{
+			name:       "a negative overflow serializes as the string -Infinity",
+			body:       `{"operation":"power","operands":[-4,1001]}`,
+			stub:       stubCalculator{result: math.Inf(-1)},
+			wantStatus: http.StatusOK,
+			wantBody:   `{"result":"-Infinity"}`,
+		},
+		{
+			name:       "an undefined result (e.g. Infinity - Infinity) serializes as the string NaN",
+			body:       `{"operation":"add","operands":[1,2]}`,
+			stub:       stubCalculator{result: math.NaN()},
+			wantStatus: http.StatusOK,
+			wantBody:   `{"result":"NaN"}`,
+		},
+		{
+			name:       "an operand sent as the string -Infinity decodes to a real negative-infinite operand",
+			body:       `{"operation":"add","operands":["-Infinity",5]}`,
+			stub:       stubCalculator{result: math.Inf(-1)},
+			wantStatus: http.StatusOK,
+			wantBody:   `{"result":"-Infinity"}`,
+		},
+		{
+			name:       "an operand that's neither a number nor a known sentinel string is rejected as malformed JSON",
+			body:       `{"operation":"add","operands":["banana",1]}`,
+			stub:       stubCalculator{},
+			wantStatus: http.StatusBadRequest,
+			wantBody:   `"code":"INVALID_JSON"`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -189,5 +225,31 @@ func TestHandler_Health(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"status":"ok"`) {
 		t.Fatalf("body = %s, want it to contain status ok", rec.Body.String())
+	}
+}
+
+// Regression: continuing a chained expression from an infinite earlier
+// result (e.g. 4^1000, then "- 5") used to silently use 0 for that
+// operand instead — JS's JSON.stringify(Infinity) serializes to the
+// JSON literal null, which decoded as a bare 0. The frontend now sends
+// the same "Infinity"/"-Infinity" sentinel strings the backend's own
+// responses use, so this exercises the real service end to end
+// (decode -> compute -> encode), not a stub, to prove the whole round
+// trip actually stays infinite.
+func TestHandler_Evaluate_ContinuesFromInfinityOperand(t *testing.T) {
+	realService := service.NewCalculatorService(calculator.NewRegistry())
+	handler := transporthttp.NewHandler(realService, testLogger())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/evaluate",
+		strings.NewReader(`{"numbers":["Infinity",5],"operators":["subtract"]}`))
+	rec := httptest.NewRecorder()
+
+	handler.Evaluate(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want %d (body: %s)", rec.Code, http.StatusOK, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `{"result":"Infinity"}`) {
+		t.Fatalf("body = %s, want it to contain {\"result\":\"Infinity\"}", rec.Body.String())
 	}
 }

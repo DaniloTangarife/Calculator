@@ -10,9 +10,13 @@ describe("formatResult", () => {
     expect(formatResult(0.1 + 0.2)).toBe("0.3");
   });
 
-  it("returns Error for non-finite values", () => {
-    expect(formatResult(Infinity)).toBe("Error");
+  it("returns Error for NaN", () => {
     expect(formatResult(NaN)).toBe("Error");
+  });
+
+  it("shows the infinity symbol for an overflowing result, not an error", () => {
+    expect(formatResult(Infinity)).toBe("∞");
+    expect(formatResult(-Infinity)).toBe("−∞");
   });
 
   it("shows a negative result with the same minus sign used for the subtract operator, not a plain hyphen", () => {
