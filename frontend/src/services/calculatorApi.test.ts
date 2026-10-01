@@ -59,6 +59,24 @@ describe("calculate", () => {
 
     await expect(calculate("add", [1, 2])).rejects.toBeInstanceOf(CalculatorApiError);
   });
+
+  it("converts the backend's Infinity/-Infinity sentinel strings back into real numbers", async () => {
+    mockFetchOnce(200, { result: "Infinity" });
+    await expect(calculate("power", [4, 1000])).resolves.toBe(Number.POSITIVE_INFINITY);
+
+    mockFetchOnce(200, { result: "-Infinity" });
+    await expect(calculate("power", [-4, 1001])).resolves.toBe(Number.NEGATIVE_INFINITY);
+  });
+
+  it("sends an Infinity operand as the sentinel string, not JSON.stringify's silent null (regression: continuing from an overflowed result used 0 instead)", async () => {
+    mockFetchOnce(200, { result: "Infinity" });
+
+    await calculate("add", [Number.POSITIVE_INFINITY, -5]);
+
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const [, options] = fetchMock.mock.calls[0];
+    expect(JSON.parse(options.body)).toEqual({ operation: "add", operands: ["Infinity", -5] });
+  });
 });
 
 describe("evaluateExpression", () => {
@@ -88,5 +106,15 @@ describe("evaluateExpression", () => {
       code: "EXPRESSION_MALFORMED",
       message: "That expression isn't valid",
     });
+  });
+
+  it("continues a chained expression from an infinite earlier result, sending it as the sentinel string: 4^1000 then -5", async () => {
+    mockFetchOnce(200, { result: "Infinity" });
+
+    await evaluateExpression([Number.POSITIVE_INFINITY, 5], ["subtract"]);
+
+    const fetchMock = fetch as unknown as ReturnType<typeof vi.fn>;
+    const [, options] = fetchMock.mock.calls[0];
+    expect(JSON.parse(options.body)).toEqual({ numbers: ["Infinity", 5], operators: ["subtract"] });
   });
 });

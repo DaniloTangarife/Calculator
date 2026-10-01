@@ -29,6 +29,12 @@ func TestCalculatorService_Calculate_Success(t *testing.T) {
 		{"power", "power", []float64{2, 8}, 256},
 		{"sqrt", "sqrt", []float64{81}, 9},
 		{"percentage", "percentage", []float64{50, 200}, 100},
+		// An earlier result can legitimately be infinite (e.g. 4^1000
+		// overflows float64) — operating on it further should still
+		// produce the mathematically correct infinite result, not be
+		// rejected as invalid input.
+		{"add with a positive infinity operand", "add", []float64{math.Inf(1), -5}, math.Inf(1)},
+		{"subtract with a positive infinity operand", "subtract", []float64{math.Inf(1), 5}, math.Inf(1)},
 	}
 
 	for _, tt := range tests {
@@ -58,8 +64,6 @@ func TestCalculatorService_Calculate_Errors(t *testing.T) {
 		{"too many operands", "sqrt", []float64{4, 5}, service.ErrInvalidOperandCount},
 		{"no operands at all", "add", nil, service.ErrInvalidOperandCount},
 		{"NaN operand", "add", []float64{math.NaN(), 1}, service.ErrInvalidOperand},
-		{"positive infinity operand", "add", []float64{math.Inf(1), 1}, service.ErrInvalidOperand},
-		{"negative infinity operand", "add", []float64{math.Inf(-1), 1}, service.ErrInvalidOperand},
 		{"division by zero propagates from domain", "divide", []float64{1, 0}, calculator.ErrDivisionByZero},
 		{"negative sqrt propagates from domain", "sqrt", []float64{-9}, calculator.ErrNegativeSqrt},
 	}
@@ -83,6 +87,21 @@ func TestCalculatorService_EvaluateExpression_Success(t *testing.T) {
 	}
 	if math.Abs(got-24) > 1e-9 {
 		t.Fatalf("EvaluateExpression() = %v, want 24", got)
+	}
+}
+
+// Regression: continuing a chained expression from an infinite earlier
+// result (e.g. 4^1000, then "- 5") must stay infinite, not silently
+// become whatever the second operand alone evaluates to.
+func TestCalculatorService_EvaluateExpression_ContinuesFromInfinity(t *testing.T) {
+	svc := newService()
+
+	got, err := svc.EvaluateExpression([]float64{math.Inf(1), 5}, []string{"subtract"})
+	if err != nil {
+		t.Fatalf("EvaluateExpression() unexpected error: %v", err)
+	}
+	if !math.IsInf(got, 1) {
+		t.Fatalf("EvaluateExpression() = %v, want +Inf", got)
 	}
 }
 

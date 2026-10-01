@@ -290,6 +290,43 @@ describe("useCalculator", () => {
       expect(result.current.result).toBe("16");
     });
 
+    it("shows the infinity symbol, not an error, when a result overflows float64: 4^1000 = ∞", async () => {
+      mockedEvaluate.mockImplementation(async (numbers, operators) => realEvaluate(numbers, operators));
+      const { result } = renderHook(() => useCalculator());
+
+      act(() => result.current.inputDigit("4"));
+      await act(async () => result.current.chooseOperation("power"));
+      act(() => result.current.inputDigit("1"));
+      act(() => result.current.inputDigit("0"));
+      act(() => result.current.inputDigit("0"));
+      act(() => result.current.inputDigit("0"));
+      await act(async () => result.current.equals());
+
+      expect(result.current.result).toBe("∞");
+      expect(result.current.error).toBeNull();
+    });
+
+    it("continues correctly from an infinite result (regression: ∞ − 5 silently became −5, since JSON.stringify(Infinity) sends null over the wire)", async () => {
+      mockedEvaluate.mockImplementation(async (numbers, operators) => realEvaluate(numbers, operators));
+      const { result } = renderHook(() => useCalculator());
+
+      act(() => result.current.inputDigit("4"));
+      await act(async () => result.current.chooseOperation("power"));
+      act(() => result.current.inputDigit("1"));
+      act(() => result.current.inputDigit("0"));
+      act(() => result.current.inputDigit("0"));
+      act(() => result.current.inputDigit("0"));
+      await act(async () => result.current.equals());
+      expect(result.current.result).toBe("∞");
+
+      await act(async () => result.current.chooseOperation("subtract"));
+      act(() => result.current.inputDigit("5"));
+      await act(async () => result.current.equals());
+
+      expect(mockedEvaluate).toHaveBeenLastCalledWith([Number.POSITIVE_INFINITY, 5], ["subtract"]);
+      expect(result.current.result).toBe("∞");
+    });
+
     it("keeps standard math precedence for a negative power base: −2^4 = −16, not (−2)^4 = 16 (unlike an explicitly parenthesized base, a bare leading sign resolves after the power, not before)", async () => {
       mockedEvaluate.mockImplementation(async (numbers, operators) => realEvaluate(numbers, operators));
       const { result } = renderHook(() => useCalculator());
