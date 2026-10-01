@@ -1,0 +1,184 @@
+:root {
+  --bg: #48484a;
+  --surface: #c7c7cc;
+  --display-bg: #545456;
+  --text: #1c1c1e;
+  --text-on-dark: #f2f2f7;
+  --text-on-dark-muted: #b8b8bd;
+  --text-muted: #6e6e73;
+  --key-bg: #aeaeb2;
+  --key-hover: #bcbcc0;
+  --operation-bg: #ff9f43;
+  --operation-active-bg: #ffb976;
+  --operation-text: #1c1c1e;
+  --clear-bg: #e0594e;
+  --clear-text: #ffffff;
+  --error-text: #ffc2d1;
+
+  /* Standard, non-shrinking calculator size. It's the same on desktop
+     and mobile; only a viewport narrower than the card itself (plus
+     gutters) makes it shrink, as a safety net for very small screens. */
+  --calculator-width: 340px;
+
+  color-scheme: dark;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: var(--text-on-dark);
+  padding: 16px;
+}
+
+.app {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.calculator {
+  /* Fixed standard width, not a percentage of the viewport, so it
+     never grows or shrinks as the display's content changes — only a
+     viewport smaller than the card itself shrinks it, via the min(). */
+  width: min(var(--calculator-width), calc(100vw - 32px));
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.display {
+  background: var(--display-bg);
+  border-radius: 14px;
+  padding: 18px 16px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  /* Reserves space for the preview line even when it's empty (a
+     non-breaking space placeholder), so the card's height never jumps
+     as the preview appears or disappears. */
+  overflow: hidden;
+}
+
+.display-main {
+  color: var(--text-on-dark);
+  font-size: clamp(1.75rem, 9vw, 2.5rem);
+  text-align: right;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  max-width: 100%;
+}
+
+.display-preview {
+  color: var(--text-on-dark-muted);
+  font-size: 1.1rem;
+  text-align: right;
+  overflow-x: auto;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  max-width: 100%;
+}
+
+.display-preview-error {
+  color: var(--error-text);
+}
+
+.cursor {
+  display: inline-block;
+  width: 2px;
+  height: 0.9em;
+  margin-left: 3px;
+  background: var(--operation-bg);
+  vertical-align: -0.1em;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.key {
+  border: none;
+  border-radius: 12px;
+  padding: 18px 0;
+  font-size: 1.25rem;
+  font-weight: 500;
+  cursor: pointer;
+  background: var(--key-bg);
+  color: var(--text);
+  transition:
+    background-color 0.15s ease,
+    transform 0.05s ease;
+}
+
+.key:hover:not(:disabled) {
+  background: var(--key-hover);
+}
+
+.key:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.key:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.key-operation {
+  background: var(--operation-bg);
+  color: var(--operation-text);
+}
+
+.key-operation:hover:not(:disabled) {
+  background: var(--operation-active-bg);
+}
+
+.key-operation-active {
+  outline: 2px solid var(--text);
+  outline-offset: -2px;
+}
+
+.key-clear {
+  background: var(--clear-bg);
+  color: var(--clear-text);
+}
+
+.key-equals {
+  background: var(--operation-bg);
+  color: var(--operation-text);
+  grid-column: span 1;
+}
+
+@media (max-width: 380px) {
+  .calculator {
+    padding: 14px;
+    gap: 10px;
+  }
+
+  .key {
+    padding: 14px 0;
+    font-size: 1.05rem;
+  }
+}
